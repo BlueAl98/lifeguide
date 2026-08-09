@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: lifeguide
+  profiles:
+    active: dev   # default when no profile is set explicitly (e.g. local `mvn spring-boot:run`)
+

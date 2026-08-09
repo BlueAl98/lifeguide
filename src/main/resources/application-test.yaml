@@ -1,0 +1,10 @@
+# Overrides used during `mvn test` / @SpringBootTest runs.
+# Spring Boot auto-loads this for @ActiveProfiles("test"),
+# and it's a conventional default profile name for test suites.
+logging:
+  level:
+    root: WARN
+    com.nayibit.lifeguide: DEBUG
+
+server:
+  port: 0   # random free port, avoids clashes when tests run in parallel/CI

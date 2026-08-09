@@ -1,0 +1,16 @@
+# Production overrides.
+# No secrets or literal values here — everything comes from environment
+# variables injected at deploy time (Docker/K8s/etc). Never commit real values.
+logging:
+  level:
+    root: WARN
+    com.nayibit.lifeguide: INFO
+
+server:
+  port: 8083 #${SERVER_PORT:8081}
+
+# spring:
+#   datasource:
+#     url: ${DB_URL}
+#     username: ${DB_USER}
+#     password: ${DB_PASSWORD}

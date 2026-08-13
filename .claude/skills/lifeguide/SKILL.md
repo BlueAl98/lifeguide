@@ -72,9 +72,14 @@ com.nayibit.lifeguide.feature.auth.presentation.AuthController   (empty)
 ```
 
 No `domain`, `application`, or `infrastructure` packages exist yet for `auth`
-or any other feature. No JPA entities exist yet. One migration exists:
-`src/main/resources/db/migration/V1__create_users.sql` (currently creates a
-`roles` table — filename/content mismatch flagged but not yet resolved).
+or any other feature. No JPA entities exist yet. Two migrations exist:
+- `V1__create_users.sql` — creates `users` (id, email, username, password,
+  status, created_at). This previously had a filename/content mismatch (it
+  created a table literally named `roles` with user columns); fixed in place
+  since it had never been applied to any real database.
+- `V2__create_roles_and_user_roles.sql` — creates `roles` (id, name) and the
+  `user_roles` join table (composite PK `user_id`+`role_id`, both FKs
+  `ON DELETE CASCADE`) for a many-to-many user↔role relationship.
 
 ## Adding a new feature (scaffold pattern)
 

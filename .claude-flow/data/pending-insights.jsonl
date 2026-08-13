@@ -13,3 +13,5 @@
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/db/migration/V1__create_users.sql","timestamp":1786659838197,"sessionId":null}
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/db/migration/V2__create_roles_and_user_roles.sql","timestamp":1786659848898,"sessionId":null}
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1786659860728,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/db/migration/V3__seed_roles.sql","timestamp":1786660723804,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1786660730757,"sessionId":null}

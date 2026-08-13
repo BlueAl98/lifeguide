@@ -80,6 +80,9 @@ or any other feature. No JPA entities exist yet. Two migrations exist:
 - `V2__create_roles_and_user_roles.sql` — creates `roles` (id, name) and the
   `user_roles` join table (composite PK `user_id`+`role_id`, both FKs
   `ON DELETE CASCADE`) for a many-to-many user↔role relationship.
+- `V3__seed_roles.sql` — seeds `roles` with `ADMIN` and `USER`
+  (`ON CONFLICT DO NOTHING`, safe to re-run/rerun on a DB that already has
+  them).
 
 ## Adding a new feature (scaffold pattern)
 

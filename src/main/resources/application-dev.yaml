@@ -7,6 +7,17 @@ logging:
 server:
    port: 8081        # override here if dev needs a different port than the base config
 
-# spring:
-#   datasource:
-#     url: jdbc:h2:mem:devdb   # add once a DB dependency/datasource exists
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/lifeguide_db
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+  flyway:
+    enabled: true
+

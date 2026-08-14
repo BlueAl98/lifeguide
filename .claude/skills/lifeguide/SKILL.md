@@ -23,14 +23,25 @@ project owner. See [Updating This Skill](#updating-this-skill) at the bottom.
   bit us.
 - Spring Security (`spring-boot-starter-security`) — `common.config.SecurityConfig`
   now exists (a `SecurityFilterChain` bean). CSRF disabled (stateless JSON
-  API). `/api/register` is `permitAll()`; everything else `authenticated()`.
-  This is a placeholder shape, not a real auth mechanism yet — no login,
-  no JWT/session. Add new public endpoints to the `permitAll()` matcher list
+  API). `/api/register` and `/api/login` are `permitAll()`; everything else
+  `authenticated()`, backed by a real JWT access token — see
+  [JWT authentication](#jwt-authentication-confirmed) below.
+  Add new public endpoints to the `permitAll()` matcher list
   as they're built; default posture for anything new is authenticated.
   `common.config.SecurityErrorHandlers` is wired in as both the
   `authenticationEntryPoint` and `accessDeniedHandler` — see
   [Security filter-chain errors](#security-filter-chain-errors-confirmed)
   below for why that's needed.
+- jjwt 0.13.0 (`io.jsonwebtoken:jjwt-{api,impl,orgjson}`) for JWT
+  issuing/parsing — the `jjwt-orgjson` backend was chosen deliberately over
+  `jjwt-jackson` because the latter pulls in Jackson 2, which would sit
+  alongside this project's Jackson 3 (`tools.jackson.*`) and risk classpath
+  confusion. `jjwt-orgjson` depends on `org.json:json` instead, fully
+  independent of either Jackson major version.
+- Another Boot 4 / Spring Security 7 package relocation to watch for:
+  `UsernamePasswordAuthenticationFilter` moved from
+  `org.springframework.security.authentication` to
+  `org.springframework.security.web.authentication`.
 - Jackson 3 (`tools.jackson.*`), not Jackson 2 (`com.fasterxml.jackson.*`) —
   Spring Boot 4 / Spring 7 moved to Jackson 3, which renamed the group ID and
   every package from `com.fasterxml.jackson` to `tools.jackson`. Watch this
@@ -125,20 +136,23 @@ A `common` package now exists: global error-handling (see
 [Error handling](#error-handling-confirmed)), a `PasswordEncoder` bean, and
 `SecurityConfig` (see stack note above).
 
-`feature.auth` has its first full vertical slice — user registration,
-`POST /api/register`:
+`feature.auth` has two full vertical slices — registration and login:
+
 - `domain.User` (aggregate, invariants in the constructor, `register()` /
   `existing()` factory methods) + `domain.UserStatus` (`ACTIVE`/`INACTIVE`).
-- `application.UserRepository` (port) + `application.RegisterUserUseCase`
+- `application.UserRepository` (port: `existsByEmail`, `existsByUsername`,
+  `findByEmail`, `save`) + `application.RegisterUserUseCase`
   (rejects duplicate email/username via `AppException(ErrorCode.CONFLICT, ...)`,
-  hashes the password via `PasswordEncoder`, saves).
+  hashes the password via `PasswordEncoder`, saves) +
+  `application.LoginUseCase`/`LoginResult` (see
+  [JWT authentication](#jwt-authentication-confirmed) below).
 - `infra.UserEntity` (JPA, maps to `users`), `infra.UserJpaRepository`
   (Spring Data), `infra.UserRepositoryAdapter` (implements the port, maps
-  entity ↔ domain).
-- `presentation.RegisterRequest`/`RegisterResponse` (records; Bean Validation
-  annotations on the request, response never carries the password/hash) and
-  `AuthController` (`@RequestMapping("/api")`, replaced the old placeholder
-  stub that lived at `/auth`).
+  entity ↔ domain via a shared private `toDomain(UserEntity)` helper).
+- `presentation.RegisterRequest`/`RegisterResponse` and
+  `LoginRequest`/`LoginResponse` (records; Bean Validation annotations on
+  requests, responses never carry the password/hash) and `AuthController`
+  (`@RequestMapping("/api")`, `POST /register` and `POST /login`).
 
 ## Adding a new feature (scaffold pattern)
 
@@ -212,6 +226,45 @@ handlers are still meaningful — they'd catch a security exception thrown
 from *inside* app code (e.g. method-level `@PreAuthorize`) — but plain
 URL-matcher denials are now handled by `SecurityErrorHandlers` instead.
 
+## JWT authentication (confirmed)
+
+Access-token-only for now — no refresh token, no roles/authorities in the
+token yet (deliberate scope decision; revisit both if/when needed).
+
+- `common.config.JwtProperties` — `@ConfigurationProperties(prefix =
+  "app.jwt")` record binding `app.jwt.secret` (Base64, must be ≥256 bits
+  for HS256) and `app.jwt.expiration-seconds` (currently 900 = 15 min).
+  Configured in `application.yaml` as `${JWT_SECRET:<dev-default>}` — the
+  committed default is dev-only and protects nothing real; override via the
+  `JWT_SECRET` env var in staging/prod. **Not** `@Component` — that makes
+  the plain container try to autowire the record's constructor params as
+  beans instead of binding them from config (`No qualifying bean of type
+  'java.lang.String'` is the exact failure). Discovered/bound instead via
+  `@ConfigurationPropertiesScan` on `LifeguideApplication`, Boot's proper
+  mechanism for constructor-bound (record) properties classes.
+- `common.security.JwtService` — wraps jjwt: `generateAccessToken(userId,
+  email)` signs a token with `sub` = userId and a custom `email` claim;
+  `extractUserId(token)` verifies the signature/expiry and parses `sub`
+  back out. HS256 via `Keys.hmacShaKeyFor(...)`.
+- `common.security.JwtAuthenticationFilter` — an `OncePerRequestFilter`
+  reading `Authorization: Bearer <token>`, populating
+  `SecurityContextHolder` on a valid token and silently leaving the request
+  unauthenticated otherwise (no roles/authorities attached — see
+  `JwtAuthenticationFilter`'s javadoc). Deliberately **not** `@Component`:
+  it's registered as a plain `@Bean` in `SecurityConfig` and wired in via
+  `.addFilterBefore(..., UsernamePasswordAuthenticationFilter.class)` —
+  making it `@Component` too would double-register it (once by Boot's auto
+  `FilterRegistrationBean`, once by Spring Security).
+- `application.LoginUseCase`/`LoginResult` — looks up the user by email,
+  compares the raw password via `PasswordEncoder.matches`, then calls
+  `JwtService.generateAccessToken`. Throws the **same**
+  `AppException(ErrorCode.UNAUTHORIZED, "Invalid email or password")` for
+  both "no such email" and "wrong password" — deliberately not
+  distinguishing, so the login endpoint can't be used to enumerate which
+  emails are registered.
+- `POST /api/login` (`AuthController`) — `LoginRequest(email, password)` →
+  `LoginResponse(accessToken, tokenType="Bearer", expiresInSeconds)`.
+
 ## Testing conventions (confirmed)
 
 `spring-boot-starter-webmvc-test` (already a `test`-scope dependency)
@@ -283,10 +336,14 @@ re-litigate them.
       [Testing conventions](#testing-conventions-confirmed) above.
       `infra`/`@DataJpaTest` still has no example (no Docker in this
       sandbox); revisit once one can actually run.
-- [~] Security/auth approach for the `auth` feature — registration is public
-      (`permitAll`), everything else defaults to `authenticated()`. No real
-      login/token issuance yet; still open which mechanism (JWT? session?)
-      backs actual authentication.
+- [~] Security/auth approach for the `auth` feature — registration and
+      login are public (`permitAll`), everything else defaults to
+      `authenticated()`, backed by JWT access tokens — see
+      [JWT authentication](#jwt-authentication-confirmed) above. Still
+      open: refresh tokens (none exist yet — access token expiry is the
+      only session lifetime in the system), and roles/authorities in the
+      token (the `roles`/`user_roles` tables exist via migration but
+      aren't wired into the token or into `JwtAuthenticationFilter` yet).
 
 ## Updating this skill
 

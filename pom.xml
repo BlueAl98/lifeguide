@@ -79,6 +79,29 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- JWT (access tokens for login). jjwt-orgjson (org.json), not
+		     jjwt-jackson, on purpose: jjwt-jackson would pull in Jackson 2
+		     (com.fasterxml.jackson) alongside the Jackson 3 (tools.jackson)
+		     this project already uses via Spring — org.json avoids that
+		     entirely, it's only used internally by jjwt. -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.13.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.13.0</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-orgjson</artifactId>
+			<version>0.13.0</version>
+			<scope>runtime</scope>
+		</dependency>
+
 	</dependencies>
 
 	<build>

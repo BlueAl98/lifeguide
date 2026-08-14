@@ -4,3 +4,11 @@ spring:
   profiles:
     active: dev   # default when no profile is set explicitly (e.g. local `mvn spring-boot:run`)
 
+app:
+  jwt:
+    # Must be Base64-encoded, >= 256 bits for HS256. Override via JWT_SECRET
+    # env var in real environments (staging/prod) — this default is dev-only,
+    # committed only because it protects nothing real.
+    secret: ${JWT_SECRET:IGKSxkD1PvJjYqeaheSWApm2MjkPDk3E3YV2I0AIKblmZbLDnCTLe5LANXuwYK/X}
+    expiration-seconds: 900   # 15 minutes; no refresh token yet, see JwtProperties
+

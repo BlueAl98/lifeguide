@@ -2,6 +2,8 @@ package com.nayibit.lifeguide.feature.auth.presentation;
 
 import com.nayibit.lifeguide.common.exception.AppException;
 import com.nayibit.lifeguide.common.exception.ErrorCode;
+import com.nayibit.lifeguide.feature.auth.application.LoginResult;
+import com.nayibit.lifeguide.feature.auth.application.LoginUseCase;
 import com.nayibit.lifeguide.feature.auth.application.RegisterUserUseCase;
 import com.nayibit.lifeguide.feature.auth.domain.User;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private RegisterUserUseCase registerUserUseCase;
+
+    @MockitoBean
+    private LoginUseCase loginUseCase;
 
     @Test
     void register_returns201WithUserOnSuccess() throws Exception {
@@ -96,5 +101,50 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/register"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
+    void login_returns200WithAccessTokenOnSuccess() throws Exception {
+        User user = User.existing(1L, "jane@example.com", "jane", "hashed-password",
+                com.nayibit.lifeguide.feature.auth.domain.UserStatus.ACTIVE, java.time.Instant.now());
+        LoginResult result = new LoginResult(user, "signed.jwt.token", 900L);
+        when(loginUseCase.login("jane@example.com", "raw-password")).thenReturn(result);
+
+        LoginRequest request = new LoginRequest("jane@example.com", "raw-password");
+
+        mockMvc.perform(post("/api/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("signed.jwt.token"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresInSeconds").value(900));
+    }
+
+    @Test
+    void login_returns400WithValidationErrorOnBlankPassword() throws Exception {
+        LoginRequest request = new LoginRequest("jane@example.com", "");
+
+        mockMvc.perform(post("/api/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.path").value("/api/login"));
+    }
+
+    @Test
+    void login_returns401WhenCredentialsAreInvalid() throws Exception {
+        when(loginUseCase.login(anyString(), anyString()))
+                .thenThrow(new AppException(ErrorCode.UNAUTHORIZED, "Invalid email or password"));
+
+        LoginRequest request = new LoginRequest("jane@example.com", "wrong-password");
+
+        mockMvc.perform(post("/api/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Invalid email or password"));
     }
 }

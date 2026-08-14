@@ -4,6 +4,8 @@ import com.nayibit.lifeguide.feature.auth.application.UserRepository;
 import com.nayibit.lifeguide.feature.auth.domain.User;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 /**
  * Adapts the {@link UserRepository} application port to Spring Data JPA,
  * translating between the domain {@link User} and the persistence
@@ -29,6 +31,11 @@ public class UserRepositoryAdapter implements UserRepository {
     }
 
     @Override
+    public Optional<User> findByEmail(String email) {
+        return jpaRepository.findByEmail(email).map(this::toDomain);
+    }
+
+    @Override
     public User save(User user) {
         UserEntity entity = new UserEntity(
                 user.getId(),
@@ -39,13 +46,17 @@ public class UserRepositoryAdapter implements UserRepository {
                 user.getCreatedAt()
         );
         UserEntity saved = jpaRepository.save(entity);
+        return toDomain(saved);
+    }
+
+    private User toDomain(UserEntity entity) {
         return User.existing(
-                saved.getId(),
-                saved.getEmail(),
-                saved.getUsername(),
-                saved.getPassword(),
-                saved.getStatus(),
-                saved.getCreatedAt()
+                entity.getId(),
+                entity.getEmail(),
+                entity.getUsername(),
+                entity.getPassword(),
+                entity.getStatus(),
+                entity.getCreatedAt()
         );
     }
 }

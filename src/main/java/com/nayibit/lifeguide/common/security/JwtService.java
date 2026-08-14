@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Issues and validates JWT access tokens. A thin wrapper around jjwt, in the
@@ -17,8 +18,11 @@ import java.util.Date;
  * capability, not a business rule, so it lives in {@code common} rather than
  * a feature, and features depend on it directly rather than through a port.
  *
- * The token only carries a subject (the user id) and an email claim — no
- * roles yet, since nothing in the domain model tracks roles today.
+ * The token carries a subject (the user id), an email claim, and a
+ * {@code roles} claim (the user's role names at the moment of login —
+ * see {@code LoginUseCase}). Roles are a snapshot taken at login time: a
+ * role change doesn't take effect until the user's next login/token
+ * refresh, since there's no refresh token yet to force it sooner.
  */
 @Component
 public class JwtService {
@@ -31,13 +35,14 @@ public class JwtService {
         this.expirationSeconds = properties.expirationSeconds();
     }
 
-    public String generateAccessToken(Long userId, String email) {
+    public String generateAccessToken(Long userId, String email, List<String> roles) {
         Date now = new Date();
         Date expiresAt = new Date(now.getTime() + expirationSeconds * 1000);
 
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
+                .claim("roles", roles)
                 .issuedAt(now)
                 .expiration(expiresAt)
                 .signWith(signingKey)
@@ -54,15 +59,29 @@ public class JwtService {
      *                                  isn't a valid id
      */
     public Long extractUserId(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(signingKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-        return Long.valueOf(claims.getSubject());
+        return Long.valueOf(parseClaims(token).getSubject());
+    }
+
+    /**
+     * Same validation as {@link #extractUserId}, returning the {@code roles}
+     * claim instead. Never returns null — an absent claim (e.g. a token
+     * minted before this claim existed) reads back as an empty list rather
+     * than forcing every caller to null-check.
+     */
+    public List<String> extractRoles(String token) {
+        List<?> roles = parseClaims(token).get("roles", List.class);
+        return roles == null ? List.of() : roles.stream().map(String::valueOf).toList();
     }
 
     public long getExpirationSeconds() {
         return expirationSeconds;
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(signingKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

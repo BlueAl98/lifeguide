@@ -19,9 +19,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Application-layer unit test — {@link UserRepository} and
- * {@link PasswordEncoder} are mocked ports/collaborators, no Spring context
- * and no real database involved.
+ * Application-layer unit test — {@link UserRepository},
+ * {@link PasswordEncoder} and {@link RoleRepository} are mocked
+ * ports/collaborators, no Spring context and no real database involved.
  */
 @ExtendWith(MockitoExtension.class)
 class RegisterUserUseCaseTest {
@@ -32,6 +32,9 @@ class RegisterUserUseCaseTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private RoleRepository roleRepository;
+
     @InjectMocks
     private RegisterUserUseCase registerUserUseCase;
 
@@ -41,7 +44,8 @@ class RegisterUserUseCaseTest {
         when(userRepository.existsByUsername("jane")).thenReturn(false);
         when(passwordEncoder.encode("raw-password")).thenReturn("hashed-password");
         when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> User.existing(1L, "jane@example.com", "jane", "hashed-password",
+                        com.nayibit.lifeguide.feature.auth.domain.UserStatus.ACTIVE, java.time.Instant.now()));
 
         User saved = registerUserUseCase.register("jane@example.com", "jane", "raw-password");
 
@@ -51,6 +55,7 @@ class RegisterUserUseCaseTest {
 
         verify(passwordEncoder).encode("raw-password");
         verify(userRepository).save(any(User.class));
+        verify(roleRepository).assignRole(1L, "USER");
     }
 
     @Test
@@ -63,6 +68,7 @@ class RegisterUserUseCaseTest {
 
         verify(userRepository, never()).existsByUsername(eq("jane"));
         verify(userRepository, never()).save(any(User.class));
+        verify(roleRepository, never()).assignRole(any(), any());
     }
 
     @Test
@@ -75,5 +81,6 @@ class RegisterUserUseCaseTest {
                 .satisfies(ex -> assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
 
         verify(userRepository, never()).save(any(User.class));
+        verify(roleRepository, never()).assignRole(any(), any());
     }
 }

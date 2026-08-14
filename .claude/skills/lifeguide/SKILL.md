@@ -143,12 +143,18 @@ A `common` package now exists: global error-handling (see
 - `application.UserRepository` (port: `existsByEmail`, `existsByUsername`,
   `findByEmail`, `save`) + `application.RegisterUserUseCase`
   (rejects duplicate email/username via `AppException(ErrorCode.CONFLICT, ...)`,
-  hashes the password via `PasswordEncoder`, saves) +
+  hashes the password via `PasswordEncoder`, saves, then grants the default
+  `USER` role via `RoleRepository` — see
+  [Role assignment](#role-assignment-confirmed) below) +
   `application.LoginUseCase`/`LoginResult` (see
   [JWT authentication](#jwt-authentication-confirmed) below).
 - `infra.UserEntity` (JPA, maps to `users`), `infra.UserJpaRepository`
   (Spring Data), `infra.UserRepositoryAdapter` (implements the port, maps
   entity ↔ domain via a shared private `toDomain(UserEntity)` helper).
+- `infra.RoleEntity`/`RoleJpaRepository` (maps `roles`),
+  `infra.UserRoleEntity`/`UserRoleId`/`UserRoleJpaRepository` (maps the
+  `user_roles` join table, composite key via `@EmbeddedId`),
+  `infra.RoleRepositoryAdapter` (implements `application.RoleRepository`).
 - `presentation.RegisterRequest`/`RegisterResponse` and
   `LoginRequest`/`LoginResponse` (records; Bean Validation annotations on
   requests, responses never carry the password/hash) and `AuthController`
@@ -228,8 +234,9 @@ URL-matcher denials are now handled by `SecurityErrorHandlers` instead.
 
 ## JWT authentication (confirmed)
 
-Access-token-only for now — no refresh token, no roles/authorities in the
-token yet (deliberate scope decision; revisit both if/when needed).
+Access-token-only for now — no refresh token (deliberate scope decision;
+revisit if/when needed). The token **does** carry roles as of the work
+below.
 
 - `common.config.JwtProperties` — `@ConfigurationProperties(prefix =
   "app.jwt")` record binding `app.jwt.secret` (Base64, must be ≥256 bits
@@ -243,27 +250,67 @@ token yet (deliberate scope decision; revisit both if/when needed).
   `@ConfigurationPropertiesScan` on `LifeguideApplication`, Boot's proper
   mechanism for constructor-bound (record) properties classes.
 - `common.security.JwtService` — wraps jjwt: `generateAccessToken(userId,
-  email)` signs a token with `sub` = userId and a custom `email` claim;
-  `extractUserId(token)` verifies the signature/expiry and parses `sub`
-  back out. HS256 via `Keys.hmacShaKeyFor(...)`.
+  email, roles)` signs a token with `sub` = userId, a custom `email` claim,
+  and a `roles` claim (list of role names, e.g. `["USER"]`). A private
+  `parseClaims(token)` helper does the verify+parse once; `extractUserId`
+  and `extractRoles` both read off it instead of each re-parsing the token.
+  `extractRoles` never returns null — an absent/malformed claim reads back
+  as an empty list. HS256 via `Keys.hmacShaKeyFor(...)`. Roles are a
+  snapshot taken at login time — a role change doesn't reach an
+  already-issued token until the user logs in again (no refresh token to
+  force it sooner).
 - `common.security.JwtAuthenticationFilter` — an `OncePerRequestFilter`
-  reading `Authorization: Bearer <token>`, populating
-  `SecurityContextHolder` on a valid token and silently leaving the request
-  unauthenticated otherwise (no roles/authorities attached — see
-  `JwtAuthenticationFilter`'s javadoc). Deliberately **not** `@Component`:
-  it's registered as a plain `@Bean` in `SecurityConfig` and wired in via
+  reading `Authorization: Bearer <token>`. On a valid token it reads the
+  `roles` claim via `JwtService.extractRoles`, maps each role name to a
+  `SimpleGrantedAuthority("ROLE_" + role)` (Spring Security's `ROLE_`
+  prefix convention — required for `hasRole()`/`@PreAuthorize("hasRole(...)")`
+  to match), and populates `SecurityContextHolder` with those authorities.
+  An invalid/expired token silently leaves the request unauthenticated
+  rather than erroring. Deliberately **not** `@Component`: it's registered
+  as a plain `@Bean` in `SecurityConfig` and wired in via
   `.addFilterBefore(..., UsernamePasswordAuthenticationFilter.class)` —
   making it `@Component` too would double-register it (once by Boot's auto
   `FilterRegistrationBean`, once by Spring Security).
 - `application.LoginUseCase`/`LoginResult` — looks up the user by email,
-  compares the raw password via `PasswordEncoder.matches`, then calls
-  `JwtService.generateAccessToken`. Throws the **same**
-  `AppException(ErrorCode.UNAUTHORIZED, "Invalid email or password")` for
-  both "no such email" and "wrong password" — deliberately not
-  distinguishing, so the login endpoint can't be used to enumerate which
-  emails are registered.
+  compares the raw password via `PasswordEncoder.matches`, fetches the
+  user's roles via `RoleRepository.findRoleNames(userId)`, then calls
+  `JwtService.generateAccessToken(userId, email, roles)`. Throws the
+  **same** `AppException(ErrorCode.UNAUTHORIZED, "Invalid email or
+  password")` for both "no such email" and "wrong password" — deliberately
+  not distinguishing, so the login endpoint can't be used to enumerate
+  which emails are registered.
 - `POST /api/login` (`AuthController`) — `LoginRequest(email, password)` →
   `LoginResponse(accessToken, tokenType="Bearer", expiresInSeconds)`.
+
+Nothing actually gates a request on a role yet — no `hasRole()` matcher in
+`SecurityConfig`, no `@PreAuthorize`, and no `@EnableMethodSecurity`. The
+authorities are populated and ready; wiring an actual guard onto an
+endpoint is the next piece of work whenever there's a route that needs one.
+
+## Role assignment (confirmed)
+
+Every self-registered user is granted the `USER` role at registration time
+— `RegisterUserUseCase` calls `RoleRepository.assignRole(userId, "USER")`
+right after `UserRepository.save(user)` succeeds. `ADMIN` (and any future
+role, e.g. `PREMIUM`) is never granted through `/api/register` — that has
+to happen out-of-band (a manual DB row today; a future admin action or
+payment webhook later).
+
+`application.RoleRepository` has both directions now: `assignRole(userId,
+roleName)` (write, used by `RegisterUserUseCase`) and
+`findRoleNames(userId)` (read, used by `LoginUseCase` to populate the JWT's
+`roles` claim — see [JWT authentication](#jwt-authentication-confirmed)
+above). `infra.RoleRepositoryAdapter.findRoleNames` delegates to
+`RoleJpaRepository.findRoleNamesByUserId`, a `@Query` doing an explicit
+JPQL join from `UserRoleEntity` to `RoleEntity` on `ur.id.roleId =
+r.id` (there's no `@ManyToOne` navigation between them, so the join
+condition is spelled out in the query itself rather than walked via a
+mapped association).
+
+`roleName` passed to `assignRole` must already exist in the `roles` table
+(seeded by `V3__seed_roles.sql`) — `RoleRepositoryAdapter` throws
+`AppException(ErrorCode.INTERNAL_ERROR, ...)` if it doesn't, since an
+unknown role name at this call site is a bug, not bad user input.
 
 ## Testing conventions (confirmed)
 
@@ -338,12 +385,13 @@ re-litigate them.
       sandbox); revisit once one can actually run.
 - [~] Security/auth approach for the `auth` feature — registration and
       login are public (`permitAll`), everything else defaults to
-      `authenticated()`, backed by JWT access tokens — see
+      `authenticated()`, backed by JWT access tokens carrying a `roles`
+      claim turned into real `GrantedAuthority`s — see
       [JWT authentication](#jwt-authentication-confirmed) above. Still
       open: refresh tokens (none exist yet — access token expiry is the
-      only session lifetime in the system), and roles/authorities in the
-      token (the `roles`/`user_roles` tables exist via migration but
-      aren't wired into the token or into `JwtAuthenticationFilter` yet).
+      only session lifetime in the system), and actually gating any
+      endpoint on a role (`hasRole()`/`@PreAuthorize` — the authorities
+      exist on the `SecurityContext` now, nothing checks them yet).
 
 ## Updating this skill
 

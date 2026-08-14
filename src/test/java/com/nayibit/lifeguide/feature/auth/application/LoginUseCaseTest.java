@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +37,9 @@ class LoginUseCaseTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private RoleRepository roleRepository;
+
     @InjectMocks
     private LoginUseCase loginUseCase;
 
@@ -49,7 +53,8 @@ class LoginUseCaseTest {
         User user = existingUser();
         when(userRepository.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("raw-password", "hashed-password")).thenReturn(true);
-        when(jwtService.generateAccessToken(1L, "jane@example.com")).thenReturn("signed.jwt.token");
+        when(roleRepository.findRoleNames(1L)).thenReturn(List.of("ADMIN", "USER"));
+        when(jwtService.generateAccessToken(1L, "jane@example.com", List.of("ADMIN", "USER"))).thenReturn("signed.jwt.token");
         when(jwtService.getExpirationSeconds()).thenReturn(900L);
 
         LoginResult result = loginUseCase.login("jane@example.com", "raw-password");

@@ -7,6 +7,8 @@ import com.nayibit.lifeguide.feature.auth.domain.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * Authenticates a user by email/password and issues a JWT access token.
  *
@@ -23,11 +25,13 @@ public class LoginUseCase {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RoleRepository roleRepository;
 
-    public LoginUseCase(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public LoginUseCase(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, RoleRepository roleRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.roleRepository = roleRepository;
     }
 
     public LoginResult login(String email, String rawPassword) {
@@ -38,7 +42,8 @@ public class LoginUseCase {
             throw new AppException(ErrorCode.UNAUTHORIZED, INVALID_CREDENTIALS);
         }
 
-        String accessToken = jwtService.generateAccessToken(user.getId(), user.getEmail());
+        List<String> roles = roleRepository.findRoleNames(user.getId());
+        String accessToken = jwtService.generateAccessToken(user.getId(), user.getEmail(), roles );
         return new LoginResult(user, accessToken, jwtService.getExpirationSeconds());
     }
 }

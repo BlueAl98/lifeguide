@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -28,8 +30,10 @@ import java.util.List;
  * {@code SecurityErrorHandlers} (same "expected client condition, don't
  * log.error" rule as {@code GlobalExceptionHandler}).
  *
- * No roles/authorities are attached yet — same limitation noted in
- * {@link JwtService}.
+ * The token's {@code roles} claim (see {@link JwtService}) is turned into
+ * {@link GrantedAuthority}s with Spring Security's {@code ROLE_} prefix
+ * convention, so {@code hasRole("ADMIN")}/{@code @PreAuthorize} work against
+ * it downstream.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -51,7 +55,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(BEARER_PREFIX.length());
             try {
                 Long userId = jwtService.extractUserId(token);
-                var authentication = new UsernamePasswordAuthenticationToken(userId, null, List.of());
+                List<String> roles = jwtService.extractRoles(token);
+
+                List<GrantedAuthority> authorities = roles.stream()
+                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .map(GrantedAuthority.class::cast)
+                        .toList();
+
+                var authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException | IllegalArgumentException ex) {
                 log.debug("Rejected invalid/expired JWT: {}", ex.getMessage());

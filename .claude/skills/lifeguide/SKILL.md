@@ -21,10 +21,23 @@ project owner. See [Updating This Skill](#updating-this-skill) at the bottom.
   `flyway-database-postgresql` (the dialect). `flyway-core` alone is not enough
   to trigger migrations in Boot 4 — see git history for the incident where this
   bit us.
-- Spring Security (`spring-boot-starter-security`) — dependency only so far;
-  no `SecurityConfig`/filter chain wired up yet. Note: adding this starter
-  alone locks every endpoint behind basic auth with a random generated
-  password logged at startup, until a config overrides it.
+- Spring Security (`spring-boot-starter-security`) — `common.config.SecurityConfig`
+  now exists (a `SecurityFilterChain` bean). CSRF disabled (stateless JSON
+  API). `/api/register` is `permitAll()`; everything else `authenticated()`.
+  This is a placeholder shape, not a real auth mechanism yet — no login,
+  no JWT/session. Add new public endpoints to the `permitAll()` matcher list
+  as they're built; default posture for anything new is authenticated.
+  `common.config.SecurityErrorHandlers` is wired in as both the
+  `authenticationEntryPoint` and `accessDeniedHandler` — see
+  [Security filter-chain errors](#security-filter-chain-errors-confirmed)
+  below for why that's needed.
+- Jackson 3 (`tools.jackson.*`), not Jackson 2 (`com.fasterxml.jackson.*`) —
+  Spring Boot 4 / Spring 7 moved to Jackson 3, which renamed the group ID and
+  every package from `com.fasterxml.jackson` to `tools.jackson`. Watch this
+  when importing `ObjectMapper` or anything Jackson-related by hand — the old
+  `com.fasterxml.jackson.databind.ObjectMapper` import will compile-fail with
+  "package does not exist" even though it's second nature muscle memory from
+  older Spring Boot versions.
 - No Lombok — removed by owner's request (2026-08-14). Write getters,
   constructors, etc. by hand ("traditional way"). Don't reintroduce it.
 
@@ -98,10 +111,24 @@ or any other feature. No JPA entities exist yet. Two migrations exist:
   (`ON CONFLICT DO NOTHING`, safe to re-run/rerun on a DB that already has
   them).
 
-`spring-boot-starter-security` was added to `pom.xml` (dependency only, no
-config yet — see stack note above on the basic-auth default). A `common`
-package now exists with a global error-handling setup — see
-[Error handling](#error-handling-confirmed).
+A `common` package now exists: global error-handling (see
+[Error handling](#error-handling-confirmed)), a `PasswordEncoder` bean, and
+`SecurityConfig` (see stack note above).
+
+`feature.auth` has its first full vertical slice — user registration,
+`POST /api/register`:
+- `domain.User` (aggregate, invariants in the constructor, `register()` /
+  `existing()` factory methods) + `domain.UserStatus` (`ACTIVE`/`INACTIVE`).
+- `application.UserRepository` (port) + `application.RegisterUserUseCase`
+  (rejects duplicate email/username via `AppException(ErrorCode.CONFLICT, ...)`,
+  hashes the password via `PasswordEncoder`, saves).
+- `infra.UserEntity` (JPA, maps to `users`), `infra.UserJpaRepository`
+  (Spring Data), `infra.UserRepositoryAdapter` (implements the port, maps
+  entity ↔ domain).
+- `presentation.RegisterRequest`/`RegisterResponse` (records; Bean Validation
+  annotations on the request, response never carries the password/hash) and
+  `AuthController` (`@RequestMapping("/api")`, replaced the old placeholder
+  stub that lived at `/auth`).
 
 ## Adding a new feature (scaffold pattern)
 
@@ -131,26 +158,81 @@ Global, not per-feature. Lives in `com.nayibit.lifeguide.common`:
 - `common.presentation.GlobalExceptionHandler` — single `@RestControllerAdvice`
   that maps `AppException`, Bean Validation errors
   (`MethodArgumentNotValidException`, `ConstraintViolationException`), Spring
-  Security's `AuthenticationException`/`AccessDeniedException`, and a
-  catch-all `Exception` fallback, all through `ErrorResponse`. Nothing leaks
-  a raw stack trace or Spring's default error page to the frontend.
+  Security's `AuthenticationException`/`AccessDeniedException`,
+  `HttpRequestMethodNotSupportedException` (wrong HTTP verb → 405, not a
+  server bug), and a catch-all `Exception` fallback, all through
+  `ErrorResponse`. Nothing leaks a raw stack trace or Spring's default error
+  page to the frontend.
+
+  > Only the catch-all `Exception` handler calls `log.error(...)`. Every
+  > specific handler above it is a routine client-side condition (wrong
+  > method, bad input, missing auth) — logging those at `ERROR` would be
+  > noise, not a signal something's actually broken. When adding a new
+  > `@ExceptionHandler` for another expected Spring/framework exception
+  > (e.g. `HttpMediaTypeNotSupportedException`, malformed-JSON body), follow
+  > the same rule: map it to the right `ErrorCode`/status, don't log it as
+  > an error.
 
 Feature code should throw `AppException`, not invent per-feature exception
 types or handlers, unless/until a feature has a real reason to diverge.
+
+## Security filter-chain errors (confirmed)
+
+`@RestControllerAdvice` (`GlobalExceptionHandler`) only catches exceptions
+thrown *inside* the `DispatcherServlet` — i.e. once a request has reached a
+controller. Spring Security's `authorizeHttpRequests()` matchers reject
+requests earlier, in the filter chain, before the request ever gets there —
+so a plain `permitAll()`/`authenticated()` denial never reaches
+`GlobalExceptionHandler`'s `AuthenticationException`/`AccessDeniedException`
+handlers. Left unconfigured, Spring Security's own default entry
+point/handler just sets the status code (401/403) and writes an **empty
+body** — no `ErrorResponse` JSON, breaking the "always the same envelope"
+guarantee for the frontend.
+
+Fixed via `common.config.SecurityErrorHandlers`, a single `@Component`
+implementing both `AuthenticationEntryPoint` (401 — not authenticated) and
+`AccessDeniedHandler` (403 — authenticated but not allowed), writing the
+same `ErrorResponse` JSON shape directly to the servlet response (using the
+Jackson 3 `ObjectMapper` bean — see the Jackson note in
+[Stack](#stack)). Wired into `SecurityConfig` via
+`.exceptionHandling(ex -> ex.authenticationEntryPoint(...).accessDeniedHandler(...))`.
+
+`GlobalExceptionHandler`'s `AuthenticationException`/`AccessDeniedException`
+handlers are still meaningful — they'd catch a security exception thrown
+from *inside* app code (e.g. method-level `@PreAuthorize`) — but plain
+URL-matcher denials are now handled by `SecurityErrorHandlers` instead.
+
+## Password hashing (confirmed)
+
+`common.config.PasswordEncoderConfig` exposes a `PasswordEncoder` bean
+(`BCryptPasswordEncoder` under the hood). Inject `PasswordEncoder`
+(the interface), never `BCryptPasswordEncoder` directly. Hash on write
+(`encode`), never store/compare raw passwords, compare on login via
+`matches(raw, storedHash)` — it's a one-way hash, not reversible encryption.
 
 ## Open / pending conventions
 
 Track decisions here as the owner provides them, so future work doesn't
 re-litigate them.
 
-- [ ] DTO / mapper convention (manual mapping vs MapStruct vs record-based)
-- [ ] Use-case naming (`XyzUseCase`, `XyzService`, `XyzCommand`/`XyzHandler`?)
+- [x] DTO / mapper convention — manual, record-based. Response records carry
+      a static `from(domainObject)` factory colocated with the DTO
+      (`RegisterResponse.from(User)`); no MapStruct. Not yet exercised: how a
+      mapper looks when it needs more than one input or feature-specific
+      logic — revisit if that comes up.
+- [x] Use-case naming — `XyzUseCase` (e.g. `RegisterUserUseCase`), a
+      `@Service` in `application`. Simple use cases take plain method
+      parameters (see `register(email, username, rawPassword)`); introduce
+      an application-level Command record only once a use case's parameter
+      list grows unwieldy — no precedent for that yet.
 - [x] Exception handling strategy — global `@RestControllerAdvice` in
       `common`, see [Error handling](#error-handling-confirmed) above.
 - [ ] API response shape for success responses (raw DTOs vs wrapped envelope)
 - [ ] Testing conventions per layer (unit vs slice vs integration test placement)
-- [ ] Security/auth approach for the `auth` feature (dependency added,
-      no `SecurityConfig` yet)
+- [~] Security/auth approach for the `auth` feature — registration is public
+      (`permitAll`), everything else defaults to `authenticated()`. No real
+      login/token issuance yet; still open which mechanism (JWT? session?)
+      backs actual authentication.
 
 ## Updating this skill
 

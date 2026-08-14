@@ -14,6 +14,7 @@ public enum ErrorCode {
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Authentication required"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "Access denied"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed for this endpoint"),
     CONFLICT(HttpStatus.CONFLICT, "Conflict"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 

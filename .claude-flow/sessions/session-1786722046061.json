@@ -1,0 +1,14 @@
+{
+  "id": "session-1786722046061",
+  "startedAt": "2026-08-14T15:40:46.061Z",
+  "cwd": "/home/blue/spring projects/lifeguide",
+  "context": {},
+  "metrics": {
+    "edits": 42,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-08-14T17:17:54.994Z",
+  "duration": 5828933
+}

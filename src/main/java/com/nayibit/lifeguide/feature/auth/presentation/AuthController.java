@@ -1,15 +1,28 @@
 package com.nayibit.lifeguide.feature.auth.presentation;
 
-import org.springframework.web.bind.annotation.GetMapping;
+import com.nayibit.lifeguide.feature.auth.application.RegisterUserUseCase;
+import com.nayibit.lifeguide.feature.auth.domain.User;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api")
 public class AuthController {
 
-    @GetMapping
-    private String login(){
-        return "Hello najib";
+    private final RegisterUserUseCase registerUserUseCase;
+
+    public AuthController(RegisterUserUseCase registerUserUseCase) {
+        this.registerUserUseCase = registerUserUseCase;
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+        User user = registerUserUseCase.register(request.email(), request.username(), request.password());
+        return ResponseEntity.status(HttpStatus.CREATED).body(RegisterResponse.from(user));
     }
 }

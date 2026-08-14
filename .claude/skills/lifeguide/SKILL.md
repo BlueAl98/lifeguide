@@ -40,6 +40,16 @@ project owner. See [Updating This Skill](#updating-this-skill) at the bottom.
   older Spring Boot versions.
 - No Lombok — removed by owner's request (2026-08-14). Write getters,
   constructors, etc. by hand ("traditional way"). Don't reintroduce it.
+- More Boot 4 package relocations to watch for (same spirit as the Jackson 3
+  note above — old Spring Boot 2/3 muscle memory breaks here):
+  - `@WebMvcTest`/`@AutoConfigureMockMvc` moved from
+    `org.springframework.boot.test.autoconfigure.web.servlet` to
+    `org.springframework.boot.webmvc.test.autoconfigure` (now shipped in a
+    dedicated `spring-boot-webmvc-test` module, pulled in transitively by
+    `spring-boot-starter-webmvc-test`).
+  - `@MockBean`/`@SpyBean` (`org.springframework.boot.test.mock.mockito`) are
+    gone. Use `@MockitoBean`/`@MockitoSpyBean` from
+    `org.springframework.test.context.bean.override.mockito` instead.
 
 ## Package structure: feature-based + layered
 
@@ -202,6 +212,47 @@ handlers are still meaningful — they'd catch a security exception thrown
 from *inside* app code (e.g. method-level `@PreAuthorize`) — but plain
 URL-matcher denials are now handled by `SecurityErrorHandlers` instead.
 
+## Testing conventions (confirmed)
+
+`spring-boot-starter-webmvc-test` (already a `test`-scope dependency)
+transitively brings in `spring-boot-starter-test` (JUnit 5, Mockito,
+AssertJ) plus MockMvc and REST test client support — nothing extra to add
+for the tests described here.
+
+Pyramid, mapped onto the feature layers — write most tests as far down this
+list as the layer allows, since each step down adds Spring context startup
+cost:
+
+- **domain** — plain JUnit, no Spring, no mocks. `domain` has no framework
+  dependencies, so it's tested like a plain Java object
+  (`feature.auth.domain.UserTest`).
+- **application** (use cases) — plain JUnit + Mockito
+  (`@ExtendWith(MockitoExtension.class)`, `@Mock`/`@InjectMocks`), mocking
+  the `application` port interfaces (e.g. `UserRepository`) and any
+  injected framework interface (e.g. `PasswordEncoder`). No Spring context
+  (`feature.auth.application.RegisterUserUseCaseTest`).
+- **presentation** — `@WebMvcTest(SomeController.class)`, `MockMvc`, the
+  use case mocked via `@MockitoBean`. `GlobalExceptionHandler` is picked up
+  automatically (it's a `@RestControllerAdvice`, one of `@WebMvcTest`'s
+  default-scanned types), so error-mapping is exercised for free. Security
+  filters are disabled for these (`@AutoConfigureMockMvc(addFilters =
+  false)`) since `SecurityConfig`/`SecurityErrorHandlers` aren't
+  component-scanned into a `@WebMvcTest` slice by default and these tests
+  aren't about security anyway
+  (`feature.auth.presentation.AuthControllerTest`).
+- **infra** — `@DataJpaTest` against a real/embedded database. **Not yet
+  written for any feature** — this sandbox has no Docker access to run one
+  against Postgres and no embedded DB (H2 etc.) dependency has been added.
+  Add this once there's an environment that can actually run it.
+- **full integration** (`@SpringBootTest`) — sparingly, one true
+  end-to-end-over-HTTP test per feature at most, not a substitute for the
+  layers above.
+
+> Compiling/running tests in this sandbox needs the same JDK 21 override as
+> main-source compiles (see git history / prior session notes — no `javac`
+> on the sandbox's default JRE). Maven must run online (not `-o`) the first
+> time surefire's plugin dependencies aren't already cached locally.
+
 ## Password hashing (confirmed)
 
 `common.config.PasswordEncoderConfig` exposes a `PasswordEncoder` bean
@@ -228,7 +279,10 @@ re-litigate them.
 - [x] Exception handling strategy — global `@RestControllerAdvice` in
       `common`, see [Error handling](#error-handling-confirmed) above.
 - [ ] API response shape for success responses (raw DTOs vs wrapped envelope)
-- [ ] Testing conventions per layer (unit vs slice vs integration test placement)
+- [x] Testing conventions per layer — see
+      [Testing conventions](#testing-conventions-confirmed) above.
+      `infra`/`@DataJpaTest` still has no example (no Docker in this
+      sandbox); revisit once one can actually run.
 - [~] Security/auth approach for the `auth` feature — registration is public
       (`permitAll`), everything else defaults to `authenticated()`. No real
       login/token issuance yet; still open which mechanism (JWT? session?)

@@ -145,6 +145,11 @@ or any other feature. No JPA entities exist yet. Two migrations exist:
   category) — a deliberate one-off for local visibility, not the
   established convention (compare `V2`/`V3`, which split schema and seed
   into separate migrations).
+- `V7__create_comments.sql` — creates `comments` (id, username, date,
+  description, likes, `foro_id` FK `ON DELETE CASCADE`) for one more 1:N
+  relationship, this time hanging off `foros` (a foro has many comments).
+  Schema only, no seed data this time (per explicit scope: "for now only
+  that").
 
   > ⚠️ Naming trap already hit once: Flyway requires **`__`** (double
   > underscore) between the version and the description
@@ -202,24 +207,35 @@ scope deliberately limited to GET on first pass):
   `infra.GoalRepositoryAdapter` (implements the port; `findAll` batches its
   categories lookup via `findByGoalIdIn` + `Collectors.groupingBy` instead
   of N+1 querying per goal).
-- `domain.Foro` (id, title, description, `categoryId`) and `domain.Video`
-  (id, name, url, `categoryId`) — same shape as `Category`: constructor
-  invariants, `existing(...)`-only (no create flow yet). `Category` now
-  also holds `List<Foro> foros` and `List<Video> videos` (1:N each,
-  category→foros and category→videos).
+- `domain.Foro` (id, title, description, `categoryId`, `List<Comment>
+  comments`) and `domain.Video` (id, name, url, `categoryId`) — same shape
+  as `Category`: constructor invariants, `existing(...)`-only (no create
+  flow yet). `Category` still holds `List<Foro> foros` and `List<Video>
+  videos` (1:N each, category→foros and category→videos).
+- `domain.Comment` (id, username, `date` as `LocalDateTime`, description,
+  `likes` as a non-negative `int`, `foroId`) — same shape/invariant style
+  as the other leaf domain types, `existing(...)`-only. `Foro` holds
+  `List<Comment> comments` (1:N, foro→comments).
 - `infra.ForoEntity`/`ForoJpaRepository`, `infra.VideoEntity`/
   `VideoJpaRepository` (map `foros`/`videos`; plain `categoryId` column,
   no `@ManyToOne`, same as `CategoryEntity`'s `goalId`).
-  `GoalRepositoryAdapter` batches foros/videos per category the same way
-  it batches categories per goal — one `findByCategoryIdIn` call each,
-  grouped via `Collectors.groupingBy`, never N+1 per category.
+  `infra.CommentEntity`/`CommentJpaRepository` (maps `comments`; plain
+  `foro_id` column, same no-`@ManyToOne` rule). `GoalRepositoryAdapter`
+  batches at every level of the tree the same way — one `findByXIdIn` call
+  each, grouped via `Collectors.groupingBy`, never N+1: categories per
+  goal, foros/videos per category (in `toDomainCategories`), and now
+  comments per foro (in a dedicated `toDomainForos` helper that
+  `toDomainCategories` calls instead of mapping `ForoEntity`→`Foro`
+  directly).
 - `presentation.ForoResponse`/`VideoResponse` (records, `from(domain)`
-  factories); `CategoryResponse` now nests both lists. `GoalResponse`/
-  `CategoryResponse` (records, `from(domain)` factories) and
-  `GoalController` (`@RequestMapping("/api/goals")`, `GET /` and
-  `GET /{id}`) return the full goal→category→{foros,videos} tree in one
-  call — no separate foro/video endpoints exist yet (read-only, nested
-  under goals, same as categories). Both goals routes are in the
+  factories); `CategoryResponse` nests both lists. `presentation.
+  CommentResponse` (record, `from(domain)` factory); `ForoResponse` now
+  nests `List<CommentResponse> comments`. `GoalResponse`/`CategoryResponse`
+  (records, `from(domain)` factories) and `GoalController`
+  (`@RequestMapping("/api/goals")`, `GET /` and `GET /{id}`) return the
+  full goal→category→{foros→comments, videos} tree in one call — no
+  separate foro/video/comment endpoints exist yet (read-only, nested under
+  goals, same as categories). Both goals routes are in the
   `app.security.public-paths` list (see `SecurityProperties` in
   [Stack](#stack)) — `permitAll()`, no JWT required.
 

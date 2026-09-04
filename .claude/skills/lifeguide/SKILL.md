@@ -131,6 +131,9 @@ or any other feature. No JPA entities exist yet. Two migrations exist:
 - `V3__seed_roles.sql` — seeds `roles` with `ADMIN` and `USER`
   (`ON CONFLICT DO NOTHING`, safe to re-run/rerun on a DB that already has
   them).
+- `V4__create_goals_and_categories.sql` — creates `goals` (id, name) and
+  `categories` (id, name, `goal_id` FK `ON DELETE CASCADE`) for a 1:N
+  goal→categories relationship (see `feature.goals` below).
 
 A `common` package now exists: global error-handling (see
 [Error handling](#error-handling-confirmed)), a `PasswordEncoder` bean, and
@@ -159,6 +162,30 @@ A `common` package now exists: global error-handling (see
   `LoginRequest`/`LoginResponse` (records; Bean Validation annotations on
   requests, responses never carry the password/hash) and `AuthController`
   (`@RequestMapping("/api")`, `POST /register` and `POST /login`).
+
+`feature.goals` is read-only for now (no write use cases/endpoints yet —
+scope deliberately limited to GET on first pass):
+
+- `domain.Goal` (id, name, `List<Category>`) + `domain.Category` (id, name,
+  `goalId`) — both plain aggregates/value objects with constructor
+  invariants (non-blank name; `Category` also requires a non-null
+  `goalId`), reconstructed only via an `existing(...)` factory since there's
+  no create/register flow yet.
+- `application.GoalRepository` (port: `findAll`, `findById`) +
+  `application.GetAllGoalsUseCase`/`GetGoalByIdUseCase` (the latter throws
+  `AppException(ErrorCode.NOT_FOUND, "Goal not found")` when missing).
+- `infra.GoalEntity`/`GoalJpaRepository` (maps `goals`),
+  `infra.CategoryEntity`/`CategoryJpaRepository` (maps `categories`; plain
+  `goalId` column, no `@ManyToOne` — same call as `feature.auth`'s
+  `UserRoleEntity`/`RoleEntity`, see [Role assignment](#role-assignment-confirmed)),
+  `infra.GoalRepositoryAdapter` (implements the port; `findAll` batches its
+  categories lookup via `findByGoalIdIn` + `Collectors.groupingBy` instead
+  of N+1 querying per goal).
+- `presentation.CategoryResponse`/`GoalResponse` (records, `from(domain)`
+  factories) and `GoalController` (`@RequestMapping("/api/goals")`,
+  `GET /` and `GET /{id}`). Neither route is in `SecurityConfig`'s
+  `permitAll()` list, so both require a valid JWT like everything else
+  outside `/api/register`/`/api/login`.
 
 ## Adding a new feature (scaffold pattern)
 

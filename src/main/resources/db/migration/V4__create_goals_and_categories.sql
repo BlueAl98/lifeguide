@@ -1,0 +1,12 @@
+CREATE TABLE goals (
+    id   BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE categories (
+    id      BIGSERIAL PRIMARY KEY,
+    name    VARCHAR(255) NOT NULL,
+    goal_id BIGINT NOT NULL REFERENCES goals(id) ON DELETE CASCADE
+);
+
+

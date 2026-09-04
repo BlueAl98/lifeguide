@@ -11,4 +11,11 @@ app:
     # committed only because it protects nothing real.
     secret: ${JWT_SECRET:IGKSxkD1PvJjYqeaheSWApm2MjkPDk3E3YV2I0AIKblmZbLDnCTLe5LANXuwYK/X}
     expiration-seconds: 900   # 15 minutes; no refresh token yet, see JwtProperties
+  security:
+    # permitAll() matcher list for SecurityConfig, bound via SecurityProperties.
+    # Everything not listed here defaults to authenticated().
+    public-paths:
+      - /api/register
+      - /api/login
+      - /api/goals
 

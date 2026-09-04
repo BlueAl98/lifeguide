@@ -11,13 +11,16 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Filter chain: the security starter alone locks every endpoint behind
  * basic auth, which would block public routes like registration/login.
- * Public endpoints are opened here explicitly; everything else requires
- * authentication, backed by {@link JwtAuthenticationFilter} (see
- * {@link #jwtAuthenticationFilter}) — it populates the security context
- * from a valid {@code Authorization: Bearer <token>} header, ahead of
- * Spring Security's own username/password filter (which this stateless API
- * doesn't use). CSRF is disabled since this is a stateless JSON API, not a
- * browser form/session client.
+ * Public endpoints are opened here explicitly, driven by
+ * {@link SecurityProperties#publicPaths()} (bound from {@code
+ * app.security.public-paths} in {@code application.yaml}) rather than a
+ * hardcoded matcher list — adding a new public route is then a config
+ * edit, not a Java change. Everything else requires authentication, backed
+ * by {@link JwtAuthenticationFilter} (see {@link #jwtAuthenticationFilter})
+ * — it populates the security context from a valid {@code Authorization:
+ * Bearer <token>} header, ahead of Spring Security's own username/password
+ * filter (which this stateless API doesn't use). CSRF is disabled since
+ * this is a stateless JSON API, not a browser form/session client.
  */
 @Configuration
 public class SecurityConfig {
@@ -35,11 +38,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                      SecurityErrorHandlers securityErrorHandlers,
-                                                     JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+                                                     JwtAuthenticationFilter jwtAuthenticationFilter,
+                                                     SecurityProperties securityProperties) throws Exception {
+        String[] publicPaths = securityProperties.publicPaths().toArray(String[]::new);
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/register", "/api/login", "/api/goals").permitAll()
+                        .requestMatchers(publicPaths).permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

@@ -23,13 +23,15 @@ project owner. See [Updating This Skill](#updating-this-skill) at the bottom.
   bit us.
 - Spring Security (`spring-boot-starter-security`) — `common.config.SecurityConfig`
   now exists (a `SecurityFilterChain` bean). CSRF disabled (stateless JSON
-  API). `/api/register` and `/api/login` are `permitAll()`; everything else
-  `authenticated()`, backed by a real JWT access token — see
-  [JWT authentication](#jwt-authentication-confirmed) below.
-  Add new public endpoints to the `permitAll()` matcher list
-  as they're built; default posture for anything new is authenticated.
-  `common.config.SecurityErrorHandlers` is wired in as both the
-  `authenticationEntryPoint` and `accessDeniedHandler` — see
+  API). The `permitAll()` matcher list is **not hardcoded** in
+  `SecurityConfig` — it's bound from `app.security.public-paths` in
+  `application.yaml` via `common.config.SecurityProperties` (a
+  `@ConfigurationProperties` record, same mechanism as `JwtProperties`
+  below). Currently: `/api/register`, `/api/login`, `/api/goals`.
+  Add new public endpoints to that YAML list as they're built (a config
+  edit, not a Java change); default posture for anything new is
+  authenticated. `common.config.SecurityErrorHandlers` is wired in as both
+  the `authenticationEntryPoint` and `accessDeniedHandler` — see
   [Security filter-chain errors](#security-filter-chain-errors-confirmed)
   below for why that's needed.
 - jjwt 0.13.0 (`io.jsonwebtoken:jjwt-{api,impl,orgjson}`) for JWT
@@ -217,9 +219,9 @@ scope deliberately limited to GET on first pass):
   `GoalController` (`@RequestMapping("/api/goals")`, `GET /` and
   `GET /{id}`) return the full goal→category→{foros,videos} tree in one
   call — no separate foro/video endpoints exist yet (read-only, nested
-  under goals, same as categories). Neither goals route is in
-  `SecurityConfig`'s `permitAll()` list, so both require a valid JWT like
-  everything else outside `/api/register`/`/api/login`.
+  under goals, same as categories). Both goals routes are in the
+  `app.security.public-paths` list (see `SecurityProperties` in
+  [Stack](#stack)) — `permitAll()`, no JWT required.
 
 ## Adding a new feature (scaffold pattern)
 

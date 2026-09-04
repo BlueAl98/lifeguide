@@ -145,3 +145,8 @@
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/db/migration/V6__create_foros_and_videos.sql","timestamp":1788541848369,"sessionId":null}
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788541872970,"sessionId":null}
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788541879346,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/common/config/SecurityProperties.java","timestamp":1788542377647,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/application.yaml","timestamp":1788542411199,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/common/config/SecurityConfig.java","timestamp":1788542426110,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788542451801,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788542459686,"sessionId":null}

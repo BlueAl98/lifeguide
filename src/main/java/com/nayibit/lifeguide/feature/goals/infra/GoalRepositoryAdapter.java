@@ -2,7 +2,9 @@ package com.nayibit.lifeguide.feature.goals.infra;
 
 import com.nayibit.lifeguide.feature.goals.application.GoalRepository;
 import com.nayibit.lifeguide.feature.goals.domain.Category;
+import com.nayibit.lifeguide.feature.goals.domain.Foro;
 import com.nayibit.lifeguide.feature.goals.domain.Goal;
+import com.nayibit.lifeguide.feature.goals.domain.Video;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,19 +14,26 @@ import java.util.stream.Collectors;
 
 /**
  * Adapts the {@link GoalRepository} application port to Spring Data JPA,
- * translating between the domain {@link Goal}/{@link Category} and the
- * persistence {@link GoalEntity}/{@link CategoryEntity}.
+ * translating between the domain {@link Goal}/{@link Category}/{@link Foro}/
+ * {@link Video} and the persistence {@link GoalEntity}/{@link CategoryEntity}/
+ * {@link ForoEntity}/{@link VideoEntity}.
  */
 @Repository
 public class GoalRepositoryAdapter implements GoalRepository {
 
     private final GoalJpaRepository goalJpaRepository;
     private final CategoryJpaRepository categoryJpaRepository;
+    private final ForoJpaRepository foroJpaRepository;
+    private final VideoJpaRepository videoJpaRepository;
 
     public GoalRepositoryAdapter(GoalJpaRepository goalJpaRepository,
-                                  CategoryJpaRepository categoryJpaRepository) {
+                                  CategoryJpaRepository categoryJpaRepository,
+                                  ForoJpaRepository foroJpaRepository,
+                                  VideoJpaRepository videoJpaRepository) {
         this.goalJpaRepository = goalJpaRepository;
         this.categoryJpaRepository = categoryJpaRepository;
+        this.foroJpaRepository = foroJpaRepository;
+        this.videoJpaRepository = videoJpaRepository;
     }
 
     @Override
@@ -34,8 +43,7 @@ public class GoalRepositoryAdapter implements GoalRepository {
             return List.of();
         }
         List<Long> goalIds = goalEntities.stream().map(GoalEntity::getId).toList();
-        Map<Long, List<Category>> categoriesByGoalId = categoryJpaRepository.findByGoalIdIn(goalIds).stream()
-                .map(this::toDomain)
+        Map<Long, List<Category>> categoriesByGoalId = toDomainCategories(categoryJpaRepository.findByGoalIdIn(goalIds)).stream()
                 .collect(Collectors.groupingBy(Category::getGoalId));
 
         return goalEntities.stream()
@@ -46,16 +54,45 @@ public class GoalRepositoryAdapter implements GoalRepository {
     @Override
     public Optional<Goal> findById(Long id) {
         return goalJpaRepository.findById(id)
-                .map(entity -> toDomain(entity, categoryJpaRepository.findByGoalId(id).stream()
-                        .map(this::toDomain)
-                        .toList()));
+                .map(entity -> toDomain(entity, toDomainCategories(categoryJpaRepository.findByGoalId(id))));
     }
 
     private Goal toDomain(GoalEntity entity, List<Category> categories) {
         return Goal.existing(entity.getId(), entity.getName(), categories);
     }
 
-    private Category toDomain(CategoryEntity entity) {
-        return Category.existing(entity.getId(), entity.getName(), entity.getGoalId());
+    /**
+     * Maps categories to domain and, in the same pass, batches their foros
+     * and videos by category id — same call as the goal→categories batching
+     * above: avoid N+1 querying per category.
+     */
+    private List<Category> toDomainCategories(List<CategoryEntity> categoryEntities) {
+        if (categoryEntities.isEmpty()) {
+            return List.of();
+        }
+        List<Long> categoryIds = categoryEntities.stream().map(CategoryEntity::getId).toList();
+        Map<Long, List<Foro>> forosByCategoryId = foroJpaRepository.findByCategoryIdIn(categoryIds).stream()
+                .map(this::toDomain)
+                .collect(Collectors.groupingBy(Foro::getCategoryId));
+        Map<Long, List<Video>> videosByCategoryId = videoJpaRepository.findByCategoryIdIn(categoryIds).stream()
+                .map(this::toDomain)
+                .collect(Collectors.groupingBy(Video::getCategoryId));
+
+        return categoryEntities.stream()
+                .map(entity -> Category.existing(
+                        entity.getId(),
+                        entity.getName(),
+                        entity.getGoalId(),
+                        forosByCategoryId.getOrDefault(entity.getId(), List.of()),
+                        videosByCategoryId.getOrDefault(entity.getId(), List.of())))
+                .toList();
+    }
+
+    private Foro toDomain(ForoEntity entity) {
+        return Foro.existing(entity.getId(), entity.getTitle(), entity.getDescription(), entity.getCategoryId());
+    }
+
+    private Video toDomain(VideoEntity entity) {
+        return Video.existing(entity.getId(), entity.getName(), entity.getUrl(), entity.getCategoryId());
     }
 }

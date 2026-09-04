@@ -134,6 +134,25 @@ or any other feature. No JPA entities exist yet. Two migrations exist:
 - `V4__create_goals_and_categories.sql` — creates `goals` (id, name) and
   `categories` (id, name, `goal_id` FK `ON DELETE CASCADE`) for a 1:N
   goal→categories relationship (see `feature.goals` below).
+- `V6__create_foros_and_videos.sql` — creates `foros` (id, title,
+  description, `category_id` FK `ON DELETE CASCADE`) and `videos` (id,
+  name, url, `category_id` FK `ON DELETE CASCADE`) for two more 1:N
+  relationships hanging off `categories` (a category has many foros, a
+  category has many videos). Also seeds fake data in the same file
+  (3 categories under the `V5`-seeded goals, plus a foro and a video per
+  category) — a deliberate one-off for local visibility, not the
+  established convention (compare `V2`/`V3`, which split schema and seed
+  into separate migrations).
+
+  > ⚠️ Naming trap already hit once: Flyway requires **`__`** (double
+  > underscore) between the version and the description
+  > (`V<version>__<description>.sql`). A single underscore (`V5_seed_goals.sql`
+  > happened) is silently ignored by Flyway — no error, the migration just
+  > never runs. Double-check this on every new migration file.
+  > Also: `ON CONFLICT (col) DO NOTHING` requires an actual `UNIQUE`/exclusion
+  > constraint on `col` — Postgres errors otherwise. `V5` added
+  > `UNIQUE (name)` on `goals` for exactly this reason, mirroring `roles`
+  > (`V2`) which already had it.
 
 A `common` package now exists: global error-handling (see
 [Error handling](#error-handling-confirmed)), a `PasswordEncoder` bean, and
@@ -181,11 +200,26 @@ scope deliberately limited to GET on first pass):
   `infra.GoalRepositoryAdapter` (implements the port; `findAll` batches its
   categories lookup via `findByGoalIdIn` + `Collectors.groupingBy` instead
   of N+1 querying per goal).
-- `presentation.CategoryResponse`/`GoalResponse` (records, `from(domain)`
-  factories) and `GoalController` (`@RequestMapping("/api/goals")`,
-  `GET /` and `GET /{id}`). Neither route is in `SecurityConfig`'s
-  `permitAll()` list, so both require a valid JWT like everything else
-  outside `/api/register`/`/api/login`.
+- `domain.Foro` (id, title, description, `categoryId`) and `domain.Video`
+  (id, name, url, `categoryId`) — same shape as `Category`: constructor
+  invariants, `existing(...)`-only (no create flow yet). `Category` now
+  also holds `List<Foro> foros` and `List<Video> videos` (1:N each,
+  category→foros and category→videos).
+- `infra.ForoEntity`/`ForoJpaRepository`, `infra.VideoEntity`/
+  `VideoJpaRepository` (map `foros`/`videos`; plain `categoryId` column,
+  no `@ManyToOne`, same as `CategoryEntity`'s `goalId`).
+  `GoalRepositoryAdapter` batches foros/videos per category the same way
+  it batches categories per goal — one `findByCategoryIdIn` call each,
+  grouped via `Collectors.groupingBy`, never N+1 per category.
+- `presentation.ForoResponse`/`VideoResponse` (records, `from(domain)`
+  factories); `CategoryResponse` now nests both lists. `GoalResponse`/
+  `CategoryResponse` (records, `from(domain)` factories) and
+  `GoalController` (`@RequestMapping("/api/goals")`, `GET /` and
+  `GET /{id}`) return the full goal→category→{foros,videos} tree in one
+  call — no separate foro/video endpoints exist yet (read-only, nested
+  under goals, same as categories). Neither goals route is in
+  `SecurityConfig`'s `permitAll()` list, so both require a valid JWT like
+  everything else outside `/api/register`/`/api/login`.
 
 ## Adding a new feature (scaffold pattern)
 

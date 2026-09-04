@@ -131,3 +131,17 @@
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788539383896,"sessionId":null}
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788539390610,"sessionId":null}
 {"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/db/migration/V5__seed_goals.sql","timestamp":1788540378749,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/domain/Foro.java","timestamp":1788541785628,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/domain/Video.java","timestamp":1788541788374,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/domain/Category.java","timestamp":1788541799073,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/infra/ForoEntity.java","timestamp":1788541806002,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/infra/VideoEntity.java","timestamp":1788541809260,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/infra/ForoJpaRepository.java","timestamp":1788541810866,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/infra/VideoJpaRepository.java","timestamp":1788541811983,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/infra/GoalRepositoryAdapter.java","timestamp":1788541831974,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/presentation/ForoResponse.java","timestamp":1788541836463,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/presentation/VideoResponse.java","timestamp":1788541837935,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/java/com/nayibit/lifeguide/feature/goals/presentation/CategoryResponse.java","timestamp":1788541839787,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/src/main/resources/db/migration/V6__create_foros_and_videos.sql","timestamp":1788541848369,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788541872970,"sessionId":null}
+{"type":"edit","file":"/home/blue/spring projects/lifeguide/.claude/skills/lifeguide/SKILL.md","timestamp":1788541879346,"sessionId":null}

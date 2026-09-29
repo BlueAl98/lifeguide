@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -63,6 +64,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
                                                                     HttpServletRequest request) {
         return build(ErrorCode.METHOD_NOT_ALLOWED, ErrorCode.METHOD_NOT_ALLOWED.getDefaultMessage(), request);
+    }
+
+    /**
+     * Safety net for DB constraint violations no adapter translated (e.g. a
+     * duplicate from concurrent requests). A client-caused conflict, not a 500.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex,
+                                                                        HttpServletRequest request) {
+        // The DB detail can contain user data (e.g. the duplicate email): keep it out of WARN.
+        log.warn("Unmapped data integrity violation on {}", request.getRequestURI());
+        log.debug("Data integrity violation detail", ex);
+        return build(ErrorCode.CONFLICT, ErrorCode.CONFLICT.getDefaultMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

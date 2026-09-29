@@ -5,6 +5,7 @@ import com.nayibit.lifeguide.common.exception.ErrorCode;
 import com.nayibit.lifeguide.feature.auth.domain.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
@@ -14,6 +15,11 @@ import java.time.LocalDate;
  * default {@code USER} role. Every self-registered account starts as a
  * plain user — {@code ADMIN} (or a future {@code PREMIUM}) is granted
  * separately, never through this endpoint.
+ *
+ * <p>The exists-checks give friendly messages for the common case; the
+ * {@code UNIQUE} constraints are what actually stop two concurrent requests
+ * (double click) from both succeeding — see {@code UserRepositoryAdapter#save}.
+ * One transaction so a user is never left without their role.
  */
 @Service
 public class RegisterUserUseCase {
@@ -31,6 +37,7 @@ public class RegisterUserUseCase {
         this.roleRepository = roleRepository;
     }
 
+    @Transactional
     public User register(String email, String username, String rawPassword,
                          String firstName, String lastName, LocalDate birthDate) {
         if (userRepository.existsByEmail(email)) {

@@ -1,7 +1,10 @@
 package com.nayibit.lifeguide.feature.auth.infra;
 
+import com.nayibit.lifeguide.common.exception.AppException;
+import com.nayibit.lifeguide.common.exception.ErrorCode;
 import com.nayibit.lifeguide.feature.auth.application.UserRepository;
 import com.nayibit.lifeguide.feature.auth.domain.User;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -48,8 +51,28 @@ public class UserRepositoryAdapter implements UserRepository {
                 user.getStatus(),
                 user.getCreatedAt()
         );
-        UserEntity saved = jpaRepository.save(entity);
-        return toDomain(saved);
+        try {
+            UserEntity saved = jpaRepository.save(entity);
+            return toDomain(saved);
+        } catch (DataIntegrityViolationException ex) {
+            throw translateUniqueViolation(ex);
+        }
+    }
+
+    /**
+     * A concurrent request (e.g. double click) can pass the exists-checks and
+     * then lose the race on the UNIQUE constraint. Map it to the same 409 the
+     * exists-checks would have given, using the constraint names from V1.
+     */
+    private RuntimeException translateUniqueViolation(DataIntegrityViolationException ex) {
+        String detail = String.valueOf(ex.getMostSpecificCause().getMessage());
+        if (detail.contains("users_email_key")) {
+            return new AppException(ErrorCode.CONFLICT, "Email is already registered");
+        }
+        if (detail.contains("users_username_key")) {
+            return new AppException(ErrorCode.CONFLICT, "Username is already taken");
+        }
+        return ex;
     }
 
     private User toDomain(UserEntity entity) {

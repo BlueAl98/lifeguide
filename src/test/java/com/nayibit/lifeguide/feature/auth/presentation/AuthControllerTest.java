@@ -8,6 +8,7 @@ import com.nayibit.lifeguide.feature.auth.application.RegisterUserUseCase;
 import com.nayibit.lifeguide.feature.auth.domain.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -109,6 +110,20 @@ class AuthControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.message").value("Email is already registered"));
+    }
+
+    @Test
+    void register_returns409ForUntranslatedDataIntegrityViolation() throws Exception {
+        when(registerUserUseCase.register(anyString(), anyString(), anyString(), anyString(), anyString(), isNull()))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        RegisterRequest request = new RegisterRequest("jane@example.com", "jane", "raw-password", "Jane", "Doe", null);
+
+        mockMvc.perform(post("/api/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
     }
 
     @Test

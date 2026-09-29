@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "users")
@@ -29,6 +30,15 @@ public class UserEntity {
     @Column(nullable = false)
     private String password;
 
+    @Column(name = "first_name", nullable = false, length = 100)
+    private String firstName;
+
+    @Column(name = "last_name", nullable = false, length = 100)
+    private String lastName;
+
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserStatus status;
@@ -41,11 +51,15 @@ public class UserEntity {
     }
 
     public UserEntity(Long id, String email, String username, String password,
+                       String firstName, String lastName, LocalDate birthDate,
                        UserStatus status, Instant createdAt) {
         this.id = id;
         this.email = email;
         this.username = username;
         this.password = password;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.birthDate = birthDate;
         this.status = status;
         this.createdAt = createdAt;
     }
@@ -64,6 +78,18 @@ public class UserEntity {
 
     public String getPassword() {
         return password;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public LocalDate getBirthDate() {
+        return birthDate;
     }
 
     public UserStatus getStatus() {

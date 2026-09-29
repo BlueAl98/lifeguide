@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -53,11 +54,12 @@ class AuthControllerTest {
     @Test
     void register_returns201WithUserOnSuccess() throws Exception {
         User registered = User.existing(1L, "jane@example.com", "jane", "hashed-password",
+                "Jane", "Doe", null,
                 com.nayibit.lifeguide.feature.auth.domain.UserStatus.ACTIVE, java.time.Instant.now());
-        when(registerUserUseCase.register("jane@example.com", "jane", "raw-password"))
+        when(registerUserUseCase.register("jane@example.com", "jane", "raw-password", "Jane", "Doe", null))
                 .thenReturn(registered);
 
-        RegisterRequest request = new RegisterRequest("jane@example.com", "jane", "raw-password");
+        RegisterRequest request = new RegisterRequest("jane@example.com", "jane", "raw-password", "Jane", "Doe", null);
 
         mockMvc.perform(post("/api/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -66,12 +68,14 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.email").value("jane@example.com"))
                 .andExpect(jsonPath("$.username").value("jane"))
+                .andExpect(jsonPath("$.firstName").value("Jane"))
+                .andExpect(jsonPath("$.lastName").value("Doe"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 
     @Test
     void register_returns400WithValidationErrorOnBlankEmail() throws Exception {
-        RegisterRequest request = new RegisterRequest("", "jane", "raw-password");
+        RegisterRequest request = new RegisterRequest("", "jane", "raw-password", "Jane", "Doe", null);
 
         mockMvc.perform(post("/api/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -82,11 +86,22 @@ class AuthControllerTest {
     }
 
     @Test
+    void register_returns400WhenFirstNameMissing() throws Exception {
+        RegisterRequest request = new RegisterRequest("jane@example.com", "jane", "raw-password", null, "Doe", null);
+
+        mockMvc.perform(post("/api/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("First name is required"));
+    }
+
+    @Test
     void register_returns409WhenUseCaseRejectsDuplicate() throws Exception {
-        when(registerUserUseCase.register(anyString(), anyString(), anyString()))
+        when(registerUserUseCase.register(anyString(), anyString(), anyString(), anyString(), anyString(), isNull()))
                 .thenThrow(new AppException(ErrorCode.CONFLICT, "Email is already registered"));
 
-        RegisterRequest request = new RegisterRequest("jane@example.com", "jane", "raw-password");
+        RegisterRequest request = new RegisterRequest("jane@example.com", "jane", "raw-password", "Jane", "Doe", null);
 
         mockMvc.perform(post("/api/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -106,6 +121,7 @@ class AuthControllerTest {
     @Test
     void login_returns200WithAccessTokenOnSuccess() throws Exception {
         User user = User.existing(1L, "jane@example.com", "jane", "hashed-password",
+                "Jane", "Doe", null,
                 com.nayibit.lifeguide.feature.auth.domain.UserStatus.ACTIVE, java.time.Instant.now());
         LoginResult result = new LoginResult(user, "signed.jwt.token", 900L);
         when(loginUseCase.login("jane@example.com", "raw-password")).thenReturn(result);

@@ -45,9 +45,10 @@ class RegisterUserUseCaseTest {
         when(passwordEncoder.encode("raw-password")).thenReturn("hashed-password");
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> User.existing(1L, "jane@example.com", "jane", "hashed-password",
+                "Jane", "Doe", null,
                         com.nayibit.lifeguide.feature.auth.domain.UserStatus.ACTIVE, java.time.Instant.now()));
 
-        User saved = registerUserUseCase.register("jane@example.com", "jane", "raw-password");
+        User saved = registerUserUseCase.register("jane@example.com", "jane", "raw-password", "Jane", "Doe", null);
 
         assertThat(saved.getEmail()).isEqualTo("jane@example.com");
         assertThat(saved.getUsername()).isEqualTo("jane");
@@ -63,7 +64,7 @@ class RegisterUserUseCaseTest {
         when(userRepository.existsByEmail("jane@example.com")).thenReturn(true);
 
         assertThatExceptionOfType(AppException.class)
-                .isThrownBy(() -> registerUserUseCase.register("jane@example.com", "jane", "raw-password"))
+                .isThrownBy(() -> registerUserUseCase.register("jane@example.com", "jane", "raw-password", "Jane", "Doe", null))
                 .satisfies(ex -> assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
 
         verify(userRepository, never()).existsByUsername(eq("jane"));
@@ -77,7 +78,7 @@ class RegisterUserUseCaseTest {
         when(userRepository.existsByUsername("jane")).thenReturn(true);
 
         assertThatExceptionOfType(AppException.class)
-                .isThrownBy(() -> registerUserUseCase.register("jane@example.com", "jane", "raw-password"))
+                .isThrownBy(() -> registerUserUseCase.register("jane@example.com", "jane", "raw-password", "Jane", "Doe", null))
                 .satisfies(ex -> assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
 
         verify(userRepository, never()).save(any(User.class));

@@ -26,7 +26,14 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
-        User user = registerUserUseCase.register(request.email(), request.username(), request.password());
+        User user = registerUserUseCase.register(
+                request.email(),
+                request.username(),
+                request.password(),
+                request.firstName(),
+                request.lastName(),
+                request.birthDate()
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(RegisterResponse.from(user));
     }
 

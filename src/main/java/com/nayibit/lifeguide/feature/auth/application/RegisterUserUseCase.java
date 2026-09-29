@@ -6,6 +6,8 @@ import com.nayibit.lifeguide.feature.auth.domain.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+
 /**
  * Registers a new user: rejects duplicate email/username, hashes the raw
  * password (never persisted or logged in plaintext), saves, then grants the
@@ -29,7 +31,8 @@ public class RegisterUserUseCase {
         this.roleRepository = roleRepository;
     }
 
-    public User register(String email, String username, String rawPassword) {
+    public User register(String email, String username, String rawPassword,
+                         String firstName, String lastName, LocalDate birthDate) {
         if (userRepository.existsByEmail(email)) {
             throw new AppException(ErrorCode.CONFLICT, "Email is already registered");
         }
@@ -38,7 +41,8 @@ public class RegisterUserUseCase {
         }
 
         String passwordHash = passwordEncoder.encode(rawPassword);
-        User user = User.register(email, username, passwordHash);
+        User user = User.register(email, username, passwordHash,
+                firstName.strip(), lastName.strip(), birthDate);
         User saved = userRepository.save(user);
         roleRepository.assignRole(saved.getId(), DEFAULT_ROLE);
         return saved;

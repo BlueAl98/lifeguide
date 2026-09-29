@@ -2,7 +2,10 @@ package com.nayibit.lifeguide.feature.auth.presentation;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
+
+import java.time.LocalDate;
 
 public record RegisterRequest(
 
@@ -16,6 +19,17 @@ public record RegisterRequest(
 
         @NotBlank(message = "Password is required")
         @Size(min = 8, message = "Password must be at least 8 characters")
-        String password
+        String password,
+
+        @NotBlank(message = "First name is required")
+        @Size(max = 100, message = "First name must be at most 100 characters")
+        String firstName,
+
+        @NotBlank(message = "Last name is required")
+        @Size(max = 100, message = "Last name must be at most 100 characters")
+        String lastName,
+
+        @Past(message = "Birth date must be in the past")
+        LocalDate birthDate
 ) {
 }

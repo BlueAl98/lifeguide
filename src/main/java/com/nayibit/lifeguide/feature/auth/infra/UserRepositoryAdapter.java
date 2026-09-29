@@ -42,6 +42,9 @@ public class UserRepositoryAdapter implements UserRepository {
                 user.getEmail(),
                 user.getUsername(),
                 user.getPasswordHash(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getBirthDate(),
                 user.getStatus(),
                 user.getCreatedAt()
         );
@@ -55,6 +58,9 @@ public class UserRepositoryAdapter implements UserRepository {
                 entity.getEmail(),
                 entity.getUsername(),
                 entity.getPassword(),
+                entity.getFirstName(),
+                entity.getLastName(),
+                entity.getBirthDate(),
                 entity.getStatus(),
                 entity.getCreatedAt()
         );

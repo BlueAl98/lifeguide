@@ -45,6 +45,7 @@ class LoginUseCaseTest {
 
     private User existingUser() {
         return User.existing(1L, "jane@example.com", "jane", "hashed-password",
+                "Jane", "Doe", null,
                 UserStatus.ACTIVE, Instant.now());
     }
 
